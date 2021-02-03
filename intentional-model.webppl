@@ -1,0 +1,577 @@
+var model = function(){
+  
+//// FUNCTIONS TO DRAW AND EVALUATE BELIEFS
+  
+
+var addOp = function(x, y, op){ //add connector between 2 strings
+  return "(" + x + op + y + ")"  
+} 
+
+var cleanOut = function(arr){ //remove outer brackets
+  
+   var output = arr
+  
+   if (arr[0] == "(") {
+    
+    output.pop() 
+    output.shift()
+    return output
+     
+  } else {
+    
+    return output
+  }
+}
+
+var fullClose = function(arr){ // check if array has equal number of "(" and ")"
+  
+  var openArr = filter(function(x) { return x == "("; }, arr); 
+  var closeArr = filter(function(x) { return x == ")"; }, arr);
+  
+  if (openArr == null || closeArr == null){
+    
+    return false
+    
+  }
+  if (openArr.length == closeArr.length && arr[0] == "(" && arr[arr.length-1]==")") {
+    
+    return true
+    
+  } else {return false}
+}
+
+var getRoot = function(arr, n) { // get position of root connector
+  
+  var temp = arr.slice(0, arr.length - n)
+  
+  if(fullClose(temp) || n == 0){
+    
+    return temp.length // position of operator 
+    
+  } else {
+    getRoot(arr, n-1)
+  }
+}
+
+var evalOp = function(arg1, arg2, op) { //samples a logical action seq from proposition
+  
+  var arg1temp = arg1
+  var arg2temp = arg2
+  
+  if (op == "&"){
+    
+    if(arg1.length == 1 && arg2.length == 1){
+      var poss = arg1.concat(arg2)
+      return randomSort(poss)
+    } else {
+      return mixArray(arg1temp,arg2temp)
+    }
+  } else if (op == "|") {
+    
+    if(arg1.length == 1 && arg2.length == 1){
+      var poss = [arg1.concat(arg2), arg1, arg2] // 1/3 prob each
+      var roll = uniformDraw(poss)
+      return randomSort(roll)
+    } else {
+      
+      var poss = [mixArray(arg1temp,arg2temp), arg1, arg2]
+      return uniformDraw(poss)
+    }
+  } else {
+      return arg1.concat(arg2)
+  } 
+}
+  
+
+var drawBel = function(pool, tau){ //draw random belief
+  
+  if(flip(tau)) {
+    
+    return uniformDraw(pool)
+    
+  } else if (flip(tau)) {
+    
+    //conjunction given more weight as people seem to have strong prior for conjunctions 
+    var tempOp = sample(Categorical({ps:[1.5,1,1], vs: ["&", "|", "-"]})) 
+    var arg1 = uniformDraw(pool)
+    var newDraw = function(pool, avoid){
+      var arg2 = uniformDraw(pool)
+      if (arg2 == avoid){
+        newDraw(pool, avoid)
+      } else {
+        return arg2
+      }
+    }
+    var arg2 = newDraw(pool, arg1)
+    return addOp(arg1, arg2, tempOp)
+    
+  } else {
+    
+    var tempOp = sample(Categorical({ps:[1.5,1,1], vs: ["&", "|", "-"]}))
+    var arg1 = drawBel(pool, tau)
+    var newDraw = function(pool, avoid, tau){
+      var arg2 = drawBel(pool, tau)
+      if (arg2 == avoid){
+        newDraw(pool, avoid, tau)
+      } else {
+        return arg2
+      }
+    }
+    var arg2 = newDraw(pool, arg1, tau)
+    return addOp(arg1, arg2, tempOp)
+    
+  }
+} 
+
+
+//// GENERAL FUNCTIONS
+  
+var randomSort = function(arr){ //randomly sort array
+  
+  var getRandomFromBucket = function(bucket) {
+   var randomIndex = Math.floor(Math.random()*bucket.length);
+   return bucket.splice(randomIndex, 1)[0];
+}
+
+return map(function(x){
+  return getRandomFromBucket(arr)
+}, _.range(arr.length))
+  
+}
+
+var checkDuplicate = function(arr){ //checks if array has Duplicates
+  
+  if(arr == null){
+    return false
+  }
+  
+  var logical = mapN(function(x){
+  var temp = filter(function(y){y==arr[x]}, arr)
+  if (temp.length > 1){
+    return true
+  }else {return false}
+}, arr.length)
+  
+    if(sum(logical)>0){
+      return true
+    }else {
+      return false
+    }
+ }
+
+
+var mixArray = function(arg1, arg2){ // mix 2 arrays preserving order of individual array
+  
+var getRandomFromBucket = function(bucket) {
+   var randomIndex = Math.floor(Math.random()*bucket.length);
+   return bucket.splice(randomIndex, 1)[0];
+}
+
+if (arg1.length == 0){
+  return arg2
+} 
+  
+if (arg2.length == 0){
+  return arg1
+}
+  
+if (typeof(arg1)=="object" && typeof(arg2)=="object") {
+  
+var fullRange = _.range(arg2.length + arg1.length)
+
+var arg1Order = map(function(){
+  getRandomFromBucket(fullRange)}, 
+    _.range(arg1.length)) // get random positions (number of draws based on arg2 length)
+var arg1Order = sort(arg1Order) // sort random positions
+
+var arg2Order = map(function(){
+  getRandomFromBucket(fullRange)}, 
+    _.range(arg2.length)) // get random positions (number of draws based on arg2 length)
+var arg2Order = sort(arg2Order) // sort random positions
+
+var order = multiJoin(arg1Order, arg2Order)
+var value = multiJoin(arg1, arg2)
+
+var order2 = map(function(x){ //get final positions based on default index
+  order.indexOf(x)
+}, _.range(order.length))
+  
+var output = indexSub(value, order2)
+  return output
+
+} else if(typeof(arg1) == "string" && typeof(arg2) == "object"){
+  var ranPos = uniformDraw(_.range(arg2.length+1))
+  return insert(arg2, ranPos, arg1)
+} else if(typeof(arg2) == "string" && typeof(arg1) == "object") { //if p2 is string
+  var ranPos = uniformDraw(_.range(arg1.length+1))
+  return insert(arg1, ranPos, arg2)
+} else {
+  return[arg1, arg2]
+}
+
+}
+
+var multiJoin = function(arg1, arg2){ // concatenate 2 objects/strings
+  
+  if(typeof(arg1)=="object" && typeof(arg2)=="object"){
+    
+    return arg1.concat(arg2)
+    
+  } else if(typeof(arg1) == "string" && typeof(arg2) == "object"){
+  
+  return [arg1].concat(arg2)
+    
+} else if(typeof(arg2) == "string" && typeof(arg1) == "object") { //if arg2 is string
+ 
+  return arg1.concat(arg2)
+  
+} else {
+  return[arg1, arg2]
+}
+  
+}
+
+var insert = function(target, pos, add){ // insert an element into an array at specified position
+  
+  if (typeof(target) == "string"){
+     var p1 = [target].slice(0, pos)
+     var p2 = [target].slice(pos, target.length)
+     var output = p1.concat(add)
+     return output.concat(p2)
+  }else{
+    var p1 = target.slice(0, pos)
+    var p2 = target.slice(pos, target.length)
+    var output = p1.concat(add)
+    return output.concat(p2)
+  }
+}
+
+var arrLength = function(arr){ // checks length of an array
+  if (typeof(arr)=="string"){
+    return 1
+  } else {
+    return arr.length
+  }
+}
+
+var inside = function(leftArray, rightArray){ // checks if left inside right
+
+  if(typeof(leftArray) == "string"){
+    return any(function(y){y == leftArray}, rightArray)
+  } else {
+    map(function(x){
+    return any(function(y){x==y}, rightArray)
+  }, leftArray)
+  }
+}
+
+var unique = function(arr){ // checks if array only has unique elements
+  if(typeof(x)=="string"){
+    return reduce(function(x, acc){
+    if(inside(x, acc)){
+      return acc
+    } else {
+      return [x].concat(acc)
+    }
+  },[] ,arr)
+  } else {
+    return reduce(function(x, acc){
+    if(any(function(y){JSON.stringify(x)==JSON.stringify(y)}, acc)){
+      return acc
+    } else {
+      return [x].concat(acc)
+    }
+  },[] ,arr)
+  }
+  
+}
+
+
+var matchArray = function(x, y){ // checks if 2 arrays are the same
+  if (x.length !== y.length){
+    return false
+  } else {
+    var logical = map2(function(a,b){a==b}, x, y)
+    if (any(function(z) { return z == false; }, logical)){
+      return false
+    } else {
+      return true
+    } 
+  }
+}
+
+var indexSub = function(input, index){ // indexing
+
+var n = index.length // number of elements to keep
+
+var recurSub = function(input, index, n){
+
+  if (n == 1){ // recursion
+    
+   return input[ index[0] ] // first element subset
+    
+  } else{
+    
+    var firstElement = [ input[index[n-1]] ] //last element subset 
+    var nextElement = recurSub(input,index, n - 1) //next element
+    
+   return firstElement.concat(nextElement) //concatenate 
+  }
+}
+
+var result = recurSub(input, index, n) // save result
+var resultRev = reduce(function(x,acc){
+  acc.concat(x)
+},[],result)
+
+return resultRev // reverse order of array 
+
+}
+
+var exp = function(x){ //exponential
+  if(x == util.serialize(-Infinity)){
+    return 0
+  } else if (x == util.serialize(Infinity)){
+    return 1
+  } else {
+    return Math.exp(x)
+  }
+}
+
+var softmax = function(arr, alpha){ //softmax
+  
+  var expArray = map(function(x){
+  return exp(x)*exp(alpha)
+  }, arr)
+  
+  var sumArray = reduce(function(x,acc){
+  x+acc
+}, 0, expArray)
+  
+  return map(function(x){
+    exp(x)*exp(alpha)/sumArray
+  }, arr)
+}
+
+var subsetOf = function(arr1,arr2){ // order sensitive subsetting
+  
+  var arr1rev = reduce(function(x,acc){
+    acc.concat(x)
+  }, [], arr1)
+  
+  var output = reduce(function(x, acc){
+    if(acc == false){
+      return false
+    } else if(find(function(y){y == x}, acc) == null){ // check if element in arr1 is in arr2
+       return false
+    } else{
+      var id = acc.indexOf(find(function(y){y == x}, acc)) // get first index of arr2 that matches
+      return acc.slice(id+1, acc.length)
+    }
+  }, arr2 ,arr1rev)
+  
+  if(output == false){
+    return false
+  } else {
+    return true
+  }
+  
+}
+
+var estDelay = function(arr1, arr2){ //get number of "unnecessary" actions before door opens
+  if (subsetOf(arr1,arr2)){
+     var output = arr2.length - 1 - arr2.indexOf(arr1[arr1.length-1])
+      return output
+  } else {
+    return 0
+  }
+}
+
+// the further the necessary actions are from the door opening, the more likely the outcome will not occur
+var calcDecay = function(delay, decay){ //decay set to .05 // does not have strong effect on model predictions
+  var prob = 1 - delay*decay
+  if(prob == 1){
+    return .999
+  } else if(prob < decay){
+    return .001
+  } else {
+    return prob
+  }
+}
+
+//// FUNCTIONS TO PLAN ACTIONS AND ADD NOISE
+
+var planAct = function(belief) { //belief to action
+  
+  // find root logic
+  var belief = cleanOut(belief)
+  var opPos = getRoot(belief, belief.length)
+  
+  if (opPos == belief.length){ //base case
+    return belief
+  } else {
+    
+  // eval root logic
+  var arg1 = belief.slice(0, opPos)
+  var arg2 = belief.slice(opPos+1, belief.length)
+  
+  return evalOp(planAct(arg1), planAct(arg2), belief[opPos])
+  }  
+}
+  
+
+var constrainPlan = function(plan){ // ensures action order makes sense
+  var revPlan = reduce(function(x, acc){
+    return acc.concat(x)
+  }, [], plan)
+  
+ return reduce(function(x, acc){
+    
+    var last = acc[acc.length-1]
+    
+    if (acc == ""){
+      var location = null
+    } else if (inside(last, movePool)) {
+      var location = last.split("move")[1]
+    } else {
+      var location = last
+    }
+    
+    if (inside(revPlan[x], interactPool)){
+     var target = revPlan[x].split("interact")[1]
+     if (target !== location){
+       return acc.concat("move".concat(target)).concat(revPlan[x])
+     } else {
+       return acc.concat(revPlan[x])
+     }
+    } else {
+      return acc.concat(revPlan[x])
+    }
+    }, [], _.range(plan.length))
+}
+
+
+var getNoise = function(pool,alpha) {  // randomly sample noise
+  var n = Math.floor(sample(Exponential({a:alpha})))
+  if (n == 0){
+    return []
+  } else {
+    map(function(x){
+    return uniformDraw(pool)
+  }, _.range(n))
+  }
+}
+
+var addGoal = function(array) { // add goal - go to door and wait
+  return array.concat("moveDoor").concat("wait")
+}
+
+
+var drawAct = function(belief, pool){ //draw random act
+
+var beliefMod = belief.split("(").join("!(!").split(")").join("!)!")
+var beliefMod = beliefMod.split("!")
+var beliefMod = filter(function(x) { return x !== ""; }, beliefMod); 
+
+var actionSeq = planAct(beliefMod)
+
+var noise = getNoise(pool, 1)//alpha set to 1 //expected noise = 1
+// as alpha increases noise decreases
+
+var actionSeq = mixArray(actionSeq, noise)
+
+var actionSeq = constrainPlan(actionSeq)
+
+var actionSeq = addGoal(actionSeq)
+
+return actionSeq
+  
+}
+
+var neccAct = function(belief, pool){ //draw neccessary actions
+
+var beliefMod = belief.split("(").join("!(!").split(")").join("!)!")
+var beliefMod = beliefMod.split("!")
+var beliefMod = filter(function(x) { return x !== ""; }, beliefMod); 
+
+var actionSeq = planAct(beliefMod)
+
+return actionSeq
+  
+}
+
+
+var drawOutcome = function(act, observation){ //simulate outcome
+  if(subsetOf(act, observation)){
+    var delay = estDelay(act, observation)
+    var prob = calcDecay(delay, .05) 
+    //leads to model to favor actions closer to the door opening 
+    // for e.g. model will tend to favor pink box over blue
+    // Due to the low decay parameter, this does not strongly affect model predictions
+ 
+    if (flip(prob)){ //decay parameter = .05
+      return 1
+    } else {
+      return 0
+    }
+} else {
+  return 0
+}
+}
+
+
+///// INFERENCE STEPS 
+
+var tau = .6
+// higher tau simpler beliefs
+// 60% chance of drawing atomic beliefs
+
+var belPool = ["(interactBlue)", "(interactPink)", "(interactOrange)", "(interactDoor)"] // atomic beliefs
+
+// action space
+var actPool = ["moveBlue", "movePink", "moveOrange", "moveDoor", "moveR", "interactBlue", "interactPink", "interactOrange", "interactDoor", "wait"]
+
+
+var movePool = ["moveBlue", "movePink", "moveOrange", "moveDoor", "moveR"]
+var interactPool = ["interactBlue", "interactPink", "interactOrange", "interactDoor"]
+
+
+var structure = drawBel(belPool, tau)
+// tau is the probability of drawing unit beliefs
+
+var belief = structure
+
+var act = drawAct(belief, actPool)
+
+// observed sequence
+var observation = [ "moveBlue", "interactBlue" , "movePink", "interactPink","moveDoor", "wait"]
+
+
+var structureAct = neccAct(structure, actPool) //gets requirements from causal structure
+
+var outcome = drawOutcome(structureAct, act)
+
+
+
+condition(matchArray(act, observation)) // condition on actions
+condition(outcome==1)  // condition on outcome
+
+//print(observation)
+return {
+  structure:structure
+       }
+
+}
+
+
+var posterior = Infer({method: "rejection", samples: 2000}, model)
+
+editor.put("posterior",posterior)
+
+/////////////////////
+
+//viz.table(editor.get("posterior"))
+
+
+
+
