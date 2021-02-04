@@ -552,13 +552,13 @@ return {
 
 }
 
-var posterior = Infer({method: 'rejection', samples:2000}, model)
+var posterior = Infer({method: 'rejection', samples:2000}, model) //save posterior
 
 
 editor.put("posterior",posterior)
 
 /////////////////////
 
-//viz.table(editor.get("posterior"))
+viz.table(editor.get("posterior"))
 
 
