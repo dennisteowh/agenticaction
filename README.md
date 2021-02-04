@@ -16,7 +16,7 @@ Source code can be found in "unintentional-model.webppl".
 
 ### Two-agent-independent Model
 
-This is a mixture model of the intentional agent model and unintentional agent model. The intentional agent component can be replicated from the file, "two-agent-model(intentional).webppl (It takes a different set of observed actions compared to the "Intentional Agent Model" described above).  The unintentional agent component is identical to the "Unintentional Agent Model" described above.
+This is a mixture model of the intentional agent model and unintentional agent model. The intentional agent component can be replicated from the file, "two-agent-model(intentional).webppl (It takes a different set of observations compared to the "Intentional Agent Model" described above).  The unintentional agent component is identical to the "Unintentional Agent Model" described above.
 
 We computed the posterior for this model by taking a weighted sum of both model components' predictions. The mixture parameter was chosen by optimizing for RMSE. This analysis can be found in the "primary-analysis.html" file. 
 
