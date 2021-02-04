@@ -28,7 +28,7 @@ We computed the posterior for this model by taking a weighted sum of both model 
 
 ### Two-agent-coop Model
 
-This is a mixture model of the Two-agent-independent Model described above and another two agent model which assumes that both agents are cooperative. This second model assumes the two agents have joint beliefs which explain their combined actions. Upon making these assumptions, the second model's predictions are equivalent to that of the "Intentional Agent Model" described above.
+This is a mixture model of the "Two-agent-independent Model" described above and another two agent model which assumes that both agents are cooperative. This second model assumes the two agents have joint beliefs which explain their combined actions. Upon making these assumptions, the second model's predictions are equivalent to that of the "Intentional Agent Model" described above.
 
 We computed the posterior for this model by taking a weighted sum of both model components' predictions. The mixture parameter was chosen by optimizing for RMSE. This analysis can be found in the "primary-analysis.html" file.
 
