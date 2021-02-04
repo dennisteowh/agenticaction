@@ -32,6 +32,6 @@ This is a mixture model of the "Two-agent-independent Model" described above and
 
 We computed the posterior for this model by taking a weighted sum of both model components' predictions. The mixture parameter was chosen by optimizing for RMSE. This analysis can be found in the "primary-analysis.html" file.
 
-## Analsis Results and Code
+## Analysis Results and Code
 
 In the "primary-analysis.html" file, we document our results and analysis code. This includes results for the statistical tests ran in the paper, including the main analyses, manipulation checks, and KSD difference tests. It also contains the analysis for our grid searches to find the optimal mixture parameters for the "Mixed-Intentional Model" and the "Two-agent-coop Model". 
