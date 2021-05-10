@@ -1,0 +1,618 @@
+---
+title: "Primary Analysis for Learning from Agentic Actions"
+author: "Anonymous"
+date: "1/23/2021"
+output:
+  html_document:
+    df_print: paged
+    number_sections: yes
+    theme: readable
+    highlight: tango
+    toc: yes
+    toc_depth: 3
+fontsize: 16pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r echo = F}
+setwd("~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/primary analysis")
+
+library(tidyverse)
+library(ggplot2)
+library(car)
+library(rstatix)
+library(ggpattern)
+library(langcog)
+library(Rlab)
+
+
+load("~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/clean data/scl_dat.RData")
+source('~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/Useful Code V2.R')
+
+```
+
+```{r}
+normalise <- function(x){
+  x_sum <- sum(x,na.rm=T)
+  output <- x/x_sum
+  return(output)
+}
+
+sample_bern <- function(N, dist){
+  output <- c()
+  for(i in 1:length(dist)){
+   output <- c(output, rbern(N, dist[i])*i) 
+  }
+  return(output)
+}
+
+ # function to compute rmse
+rmse <- function(x, target){
+    pred <- x
+    loss <- sum(sqrt((target - pred)^2))/length(target)
+
+  return(loss)
+}
+
+# function to grid search for lowest RMSE
+rmse2 <- function(x,y, target, w){
+  output <- c()
+  for(i in w){
+    pred <- i*x+(1-i)*y
+    loss <- sum(sqrt((target - pred)^2))/length(target)
+    output <- c(output, loss)
+  }
+  optimal_value = min(output)
+  optimal <- which(output == min(output))
+  output <- data.frame(w=w, loss=output)
+  print(paste("lowest RMSE is",  optimal_value, "at",  w[optimal]))
+
+  return(output)
+}
+
+```
+
+
+# Descriptives and outliers
+```{r}
+
+# fail attention check
+scl_dat <- scl_dat[scl_dat$attention!="4",]
+
+# outlier for rt
+rt_range <- 3*sd(scl_dat$total_rt)
+slow <- which(scl_dat$total_rt > mean(scl_dat$total_rt,na.rm = T) + rt_range)
+fast <- which(scl_dat$total_rt < mean(scl_dat$total_rt,na.rm = T) - rt_range)
+length(slow) + length(fast)
+
+# remove slow
+scl_dat <- scl_dat[-slow,]
+
+# nfail
+n_fails <- which(scl_dat$n_fails > 3)
+length(n_fails)
+
+nrow(scl_dat)
+
+
+```
+
+```{r}
+# gender
+table(scl_dat$gender)
+
+table(scl_dat$gender)[[1]]/length(scl_dat$gender) # prop females
+
+# age
+mean(scl_dat$age,na.rm = T) #age
+sd(scl_dat$age,na.rm = T)
+
+# native language
+table(scl_dat$language)
+(length(scl_dat$language) - 2)/length(scl_dat$language)
+
+
+```
+
+
+```{r}
+# change to long form
+scl_dat_long <- gather.keep(scl_dat, gather.col = c("cause_blue","cause_pink","cause_both","cause_bp"), keep = c("workerid", "condition"), key = "structure",value="likelihood")
+
+# normalised ratings
+scl_dat_long_norm <- gather.keep(scl_dat, gather.col = c("cause_blue_norm","cause_pink_norm","cause_both_norm","cause_bp_norm"), keep = c("workerid", "condition"), key = "structure",value="likelihood")
+
+```
+
+
+# Primary Analysis
+
+```{r}
+
+intention <- scl_dat %>%
+  filter(condition == "condition 1")
+
+unintention <- scl_dat %>%
+  filter(condition == "condition 2")
+
+two_agent <- scl_dat %>%
+  filter(condition == "condition 3")
+
+# intentional vs unintentional on B -> P
+t.test(intention$cause_bp, unintention$cause_bp)
+
+# intentional vs two-agent on B -> P
+t.test(intention$cause_bp, two_agent$cause_bp)
+
+# intentional vs two-agent on B 
+t.test(two_agent$cause_blue, intention$cause_blue)
+
+# unintentional vs two-agent on B 
+t.test(two_agent$cause_blue, unintention$cause_blue)
+
+# anova on both boxes
+Anova(lm(cause_both ~ condition, data = scl_dat))
+
+
+```
+
+
+# Manipulation Check
+
+## intentional human vs unintentional bot
+```{r}
+intention <- scl_dat %>%
+  filter(condition == "condition 1")
+
+unintention <- scl_dat %>%
+  filter(condition == "condition 2")
+
+
+t.test(intention$intention, unintention$intention)
+```
+
+```{r}
+
+scl_dat %>%
+  group_by(condition) %>%
+  summarise(mean = mean(intention, na.rm = T),
+            sd = sd(intention, na.rm=T))
+```
+
+
+## within two-agent: human vs bot
+
+```{r}
+
+two_agent <- scl_dat %>%
+  filter(condition == "condition 3")
+
+t.test(two_agent$intention, two_agent$intention_bot, paired = T)
+
+# unintentional bot vs two-agent bot 
+t.test(unintention$intention, two_agent$intention_bot)
+
+```
+
+
+# Searching for mixture parameters
+
+```{r}
+human0.0 <- normalise(c(.13366,.13433,.101+.09233,.39566))
+
+human0.05 <- normalise(c(.11900,.13666,.09566+.09266,.40466))
+
+human0.1 <- normalise(c(.109,.141,.10533+.09533,.40466))
+
+human0.15 <- normalise(c(.07399,.14066,.116+.11199,.41133))
+
+human0.2 <- normalise(c(0,.16666,.12133+.11566,.47866))
+
+intention_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 1") %>%
+  spread(key = structure, value = likelihood)
+
+target <- c(mean(intention_data$cause_blue_norm, na.rm=T), 
+         mean(intention_data$cause_pink_norm, na.rm=T), 
+         mean(intention_data$cause_both_norm, na.rm=T), 
+         mean(intention_data$cause_bp_norm, na.rm=T)
+            )
+```
+
+```{r}
+rmse(human0.0, target)
+
+rmse(human0.05, target)
+
+rmse(human0.1, target) # lowest RMSE
+
+rmse(human0.15, target)
+
+rmse(human0.2, target)
+```
+
+```{r}
+human <- normalise(c(.109,.141,.10533+.09533,.40466))
+
+robot <- normalise(c(.353,.47333,.01233+.01033,.02633))
+
+human_two_agent <- normalise(c(.96066,0,0,0))
+
+two_agent_independent <- .5*human_two_agent + .5*robot
+
+```
+
+
+
+
+## semi-intentional
+```{r}
+
+unintention_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 2") %>%
+  spread(key = structure, value = likelihood)
+
+target <- c(mean(unintention_data$cause_blue_norm, na.rm=T), 
+         mean(unintention_data$cause_pink_norm, na.rm=T), 
+         mean(unintention_data$cause_both_norm, na.rm=T), 
+         mean(unintention_data$cause_bp_norm, na.rm=T)
+            )
+
+set.seed(100)
+
+weights <- 0:10/10
+
+# search for mixture parameter for semi intentional
+rmse2(human, robot, target, weights)
+
+# compute weight sum of posteriors
+.9*human + .1*robot
+
+semi <- .9*human + .1*robot
+
+```
+
+## two_agent coop
+
+```{r}
+
+two_agent_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 3") %>%
+  spread(key = structure, value = likelihood)
+
+target <- c(mean(two_agent_data$cause_blue_norm, na.rm=T), 
+         mean(two_agent_data$cause_pink_norm, na.rm=T), 
+         mean(two_agent_data$cause_both_norm, na.rm=T), 
+         mean(two_agent_data$cause_bp_norm, na.rm=T)
+            )
+
+coop <- human
+
+# search for mixture parameters for two-agent coop
+
+set.seed(100)
+
+weights <- 0:10/10
+
+rmse2(two_agent_independent, coop, target, weights)
+
+.3*two_agent_independent + .7*coop
+
+two_agent_coop <- .3*two_agent_independent + .7*coop
+
+```
+
+
+
+# Graphs
+
+```{r}
+scl_dat_long_grp <- scl_dat_long_norm %>% group_by(condition, structure)
+
+# get standard errors and CIs
+summary1 <- multi_boot_standard(scl_dat_long_grp, col="likelihood")
+
+empty1 <- data.frame(condition = rep("condition 4", 4), 
+                    structure = c("cause_blue_norm", "cause_pink_norm", "cause_both_norm", "cause_bp_norm"),
+                    ci_lower = rep(NA, 4),
+                     ci_upper = rep(NA, 4),
+                     mean = rep(NA, 4)
+                    )
+
+empty2 <- data.frame(condition = rep("condition 5", 4), 
+                    structure = c("cause_blue_norm", "cause_pink_norm", "cause_both_norm", "cause_bp_norm"),
+                    ci_lower = rep(NA, 4),
+                     ci_upper = rep(NA, 4),
+                     mean = rep(NA, 4)
+                    )
+
+ summary1$Condition <- ifelse(summary1$condition == "condition 1", 5, 
+                              ifelse(summary1$condition == "condition 2", 3, 1
+                                     ))
+
+summary1mod <- summary1 %>%
+  full_join(empty1) %>%
+  full_join(empty2)
+
+ summary1mod$Condition <- ifelse(summary1mod$condition == "condition 1", 5, 
+                              ifelse(summary1mod$condition == "condition 2", 3, 
+                                     ifelse(summary1mod$condition == "condition 3", 1, 
+                                            ifelse(summary1mod$condition == "condition 4", 2, 4)
+                                     )))
+
+```
+
+
+```{r}
+
+
+summary1$Structure <- factor(summary1$structure, labels = c("B","P","B & P", "B -> P", "P -> B"), levels = c("cause_blue_norm", "cause_pink_norm", "cause_both_norm", "cause_bp_norm", "cause_pb_norm"))
+
+summary1mod$Structure <- factor(summary1mod$structure, labels = c("B","P","B & P", "B -> P", "P -> B"), levels = c("cause_blue_norm", "cause_pink_norm", "cause_both_norm", "cause_bp_norm", "cause_pb_norm"))
+
+# summary1$Condition <- factor(summary1$condition,levels = c("condition 1","condition 2","condition 3") , labels = c("Intentional", "Unintentional", "Two agent"))
+
+
+breaks <- unique(summary1$Condition)
+
+plot2 <- ggplot(summary1mod, aes(x = Condition, y = mean, fill = Structure)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  geom_errorbar( data = summary1, aes(x = Condition,ymin=ci_lower, ymax=ci_upper, fill= Structure), width=.2,
+                 position=position_dodge(.9), width = .5, size = .5)+
+  ylab("likelihood ratings") + 
+  ylim(0,.75) +
+  scale_x_reverse(breaks=breaks, labels=rev(c("Two-agent", "Robot","Human") )) +
+  scale_fill_manual(values = c("#0072b2","#CC79A7",  "#009E73",  "#D55E00")) +
+  theme_bw() + xlab("")+
+  geom_vline(xintercept=2.5, linetype="dashed")+
+  geom_vline(xintercept=4.5, linetype="dashed")+
+  theme(text = element_text(size = 16),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5)) +
+  ggtitle("Human Data")
+
+```
+
+```{r}
+
+# intentional agent posterior
+human.data <- data.frame(
+  Structure = c("B", "P", "B & P", "B -> P"),
+  mean  = human,
+  Condition = rep("Intentional", 4)
+)
+
+# unintentional agent posterior
+robot.data <- data.frame(
+  Structure = c("B", "P", "B & P", "B -> P"),
+  mean  = robot,
+  Condition = rep("Unintentional", 4)
+)
+
+# semi intentional-agent posterior
+robot2.data <- data.frame(
+  Structure = c("B", "P", "B & P", "B -> P"),
+  mean = semi,
+  Condition = rep("Semi-intentional", 4)
+)
+
+# two agent independent posterior 
+two_agent.data <- data.frame(
+  Structure = c("B", "P", "B & P", "B -> P"),
+  mean = two_agent_independent,
+  Condition = rep("Two-agent-solo", 4)
+  )
+
+# two agent coop posterior 
+two_agent2.data <- data.frame(
+  Structure = c("B", "P", "B & P", "B -> P"),
+  mean = two_agent_coop,
+  Condition = rep("Two-agent-coop", 4)
+  )
+
+
+pred.data <- as.data.frame(rbind(human.data, robot.data, robot2.data, two_agent.data, two_agent2.data))
+
+pred.data$Condition <- factor(pred.data$Condition, levels = c("Intentional", "Unintentional","Semi-intentional", "Two-agent-solo","Two-agent-coop"),
+                              labels = c("Intentional", "Unintentional","Semi-intentional", "Two-agent-independent","Two-agent-coop"))
+
+pred.data$Structure <- factor(pred.data$Structure, levels = c("B", "P", "B & P", "B -> P"))
+
+plot1 <- ggplot(pred.data, aes(x = Condition, y = mean, fill=Structure)) + 
+  geom_bar(stat = "identity", position = "dodge") +
+  ylab("likelihood ratings") + xlab("") + 
+  scale_fill_manual(values = c("#0072b2","#CC79A7",  "#009E73", "#D55E00")) +
+  theme_bw() +
+  ylim(0,.75) +
+  geom_vline(xintercept=1.5, linetype="dashed")+
+  geom_vline(xintercept=3.5, linetype="dashed")+
+  theme(text = element_text(size = 16),
+        plot.title = element_text(face = "bold", size = 16, hjust = 0.5)) +
+  ggtitle("Model Predictions")+
+  annotate(geom="text", x=1.08, y=.6, label=expression('D'["KS"] * '= .01') , size = 4  )+
+  annotate(geom="text", x=2.08, y=.6, label=expression('D'["KS"] * '= .16'^"*") , size = 4  )+
+  annotate(geom="text", x=3.08, y=.6, label=expression('D'["KS"] * '= .04')  , size = 4 )+
+  annotate(geom="text", x=4.08, y=.6, label=expression('D'["KS"] * '= .13'^"*"), size = 4   )+
+  annotate(geom="text", x=5.08, y=.6, label=expression('D'["KS"] * '= .03') , size = 4  )
+
+
+
+```
+
+```{r}
+library(grid)
+grid.newpage()
+grid.draw(rbind(ggplotGrob(plot2), ggplotGrob(plot1), size = "last"))
+
+```
+
+
+
+# Fit statistics
+
+## intention_data - ksd
+
+```{r}
+
+
+intention_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 1") %>%
+  spread(key = structure, value = likelihood)
+
+causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
+
+set.seed(100)
+
+# convert human data into categories by sampling
+for (i in 1:length(causes)){
+  intention_data[, causes[i]] <- rbern(nrow(intention_data), as.vector(unlist( intention_data[, causes[i]])))*i
+}
+
+# sample from predicted posterior
+intention_pred <- sample_bern(100, human)
+
+intention_vect <- c(intention_data$cause_blue_norm,
+                    intention_data$cause_pink_norm,
+                    intention_data$cause_both_norm,
+                    intention_data$cause_bp_norm
+                    )
+
+ks.test(intention_pred, intention_vect)
+
+
+```
+
+
+
+## unintention_data - ksd
+
+```{r}
+
+unintention_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 2") %>%
+  spread(key = structure, value = likelihood)
+
+causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
+
+
+set.seed(100)
+
+for (i in 1:length(causes)){
+  unintention_data[, causes[i]] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
+}
+
+unintention_pred <- sample_bern(100, robot)
+
+
+unintention_vect <- c(unintention_data$cause_blue_norm,
+                    unintention_data$cause_pink_norm,
+                    unintention_data$cause_both_norm,
+                    unintention_data$cause_bp_norm
+                    )
+
+ks.test(unintention_pred, unintention_vect)
+
+
+
+```
+
+
+## semi-intention_data - ksd
+
+```{r}
+
+unintention_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 2") %>%
+  spread(key = structure, value = likelihood)
+
+causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
+
+
+set.seed(100)
+
+for (i in 1:length(causes)){
+  unintention_data[, causes[i]] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
+}
+
+unintention_pred <- sample_bern(100, semi)
+
+
+unintention_vect <- c(unintention_data$cause_blue_norm,
+                    unintention_data$cause_pink_norm,
+                    unintention_data$cause_both_norm,
+                    unintention_data$cause_bp_norm
+                    )
+
+ks.test(unintention_pred, unintention_vect)
+
+```
+
+
+## two_agent_data:independent - ksd
+
+```{r}
+
+two_agent_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 3") %>%
+  spread(key = structure, value = likelihood)
+
+causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
+
+
+set.seed(100)
+
+for (i in 1:length(causes)){
+  two_agent_data[, causes[i]] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
+}
+
+two_pred <- sample_bern(100, two_agent_independent)
+
+
+two_vect <- c(two_agent_data$cause_blue_norm,
+                    two_agent_data$cause_pink_norm,
+                    two_agent_data$cause_both_norm,
+                    two_agent_data$cause_bp_norm
+                    )
+
+ks.test(two_pred, two_vect)
+
+```
+
+## two_agent_data:coop - ksd
+
+```{r}
+
+two_agent_data <- scl_dat_long_norm %>%
+  filter(condition == "condition 3") %>%
+  spread(key = structure, value = likelihood)
+
+causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
+
+
+set.seed(100)
+
+for (i in 1:length(causes)){
+  two_agent_data[, causes[i]] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
+}
+
+two_pred <- sample_bern(100, two_agent_coop)
+
+
+two_vect <- c(two_agent_data$cause_blue_norm,
+                    two_agent_data$cause_pink_norm,
+                    two_agent_data$cause_both_norm,
+                    two_agent_data$cause_bp_norm
+                    )
+
+ks.test(two_pred, two_vect)
+
+```
+
+
+
+
+
+
+
