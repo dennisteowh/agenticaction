@@ -20,7 +20,7 @@ This is a mixture model of the intentional agent model and unintentional agent m
 
 We computed the posterior for this model by taking a weighted sum of both model components' predictions. The mixture parameter was chosen by optimizing for RMSE. This analysis can be found in the "primary-analysis.html" file. 
 
-### Mixed-Intentional Model
+### Semi-Intentional Model
 
 This is a mixture model of the intentional agent model and unintentional agent model, similar to the Two-agent model. The intentional agent component is identical to the "Intentional Agent Model" described above. The unintentional agent component is identical to the "Unintentional Agent Model" described above.
 
