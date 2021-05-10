@@ -89,10 +89,9 @@ var drawBel = function(pool, tau){ //draw random belief
     
     return uniformDraw(pool)
     
-  } else if (flip(tau)) {
+  } else if (flip(tau)) { 
     
-    //conjunction given more weight as people seem to have strong prior for conjunctions 
-    var tempOp = sample(Categorical({ps:[1.5,1,1], vs: ["&", "|", "-"]})) 
+    var tempOp = sample(Categorical({ps:[1,1,1], vs: ["&", "|", "-"]})) 
     var arg1 = uniformDraw(pool)
     var newDraw = function(pool, avoid){
       var arg2 = uniformDraw(pool)
@@ -107,7 +106,7 @@ var drawBel = function(pool, tau){ //draw random belief
     
   } else {
     
-    var tempOp = sample(Categorical({ps:[1.5,1,1], vs: ["&", "|", "-"]}))
+    var tempOp = sample(Categorical({ps:[1,1,1], vs: ["&", "|", "-"]}))
     var arg1 = drawBel(pool, tau)
     var newDraw = function(pool, avoid, tau){
       var arg2 = drawBel(pool, tau)
@@ -504,12 +503,12 @@ return actionSeq
 var drawOutcome = function(act, observation){ //simulate outcome
   if(subsetOf(act, observation)){
     var delay = estDelay(act, observation)
-    var prob = calcDecay(delay, .05) 
+    var prob = calcDecay(delay, 0.1) 
     //leads to model to favor actions closer to the door opening 
     // for e.g. model will tend to favor pink box over blue
     // Due to the low decay parameter, this does not strongly affect model predictions
  
-    if (flip(prob)){ //decay parameter = .05
+    if (flip(prob)){ 
       return 1
     } else {
       return 0
@@ -564,13 +563,14 @@ return {
 }
 
 
-var posterior = Infer({method: "rejection", samples: 2000}, model)
+var posterior = Infer({method: "rejection", samples: 3000}, model)
 
-editor.put("posterior",posterior) //save posterior
+editor.put("posterior",posterior)
 
 /////////////////////
 
-viz.table(editor.get("posterior"))
+//viz.table(editor.get("posterior"))
+
 
 
 
