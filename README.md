@@ -34,4 +34,6 @@ We computed the posterior for this model by taking a weighted sum of both model 
 
 ## Analysis Results and Code
 
-In the "primary-analysis.html" file, we document our results and analysis code. This includes results for the statistical tests ran in the paper, including the main analyses, manipulation checks, and KSD difference tests. It also contains the analysis for our grid searches to find the optimal mixture parameters for the "Semi-Intentional Model" and the "Two-agent-coop Model". 
+In the "primary-analysis.html" file, we document our results and analysis code. This includes results for the statistical tests ran in the paper, including the main analyses, manipulation checks, and KSD difference tests. It also contains the analysis for our grid searches to find the optimal mixture parameters for the "Semi-Intentional Model" and the "Two-agent-coop Model".  
+
+The anonymized data (used for analysis) can be found in the "scl_dat.csv" file. 
