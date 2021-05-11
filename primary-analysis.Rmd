@@ -1,7 +1,6 @@
 ---
 title: "Primary Analysis for Learning from Agentic Actions"
-author: "Anonymous"
-date: "1/23/2021"
+author: "Dennis W.H. Teo"
 output:
   html_document:
     df_print: paged
@@ -18,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 ```{r echo = F}
-setwd("~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/primary analysis")
+
 
 library(tidyverse)
 library(ggplot2)
@@ -28,9 +27,8 @@ library(ggpattern)
 library(langcog)
 library(Rlab)
 
-
-load("~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/clean data/scl_dat.RData")
-source('~/Dropbox/8 and above/Social Causal Learning Expt/scl-analysis/study 1/Useful Code V2.R')
+library(readr)
+scl_dat <- read_csv("scl_dat.csv")
 
 ```
 
@@ -71,6 +69,38 @@ rmse2 <- function(x,y, target, w){
   print(paste("lowest RMSE is",  optimal_value, "at",  w[optimal]))
 
   return(output)
+}
+
+gather.keep <- function(df, gather.col, keep = NULL, key = "key", value= "value") {
+  
+  require(tidyverse)
+  
+  if (is.null(keep)) {
+    
+    result <- gather(df[, gather.col], key = key, value = value)
+    return(result)
+    
+  } else {
+    
+    result <- gather(df[, gather.col], key = key, value = value) 
+    
+    no.var <- length(gather.col) 
+    
+    grow <- df[, c(gather.col, keep)]
+    temp <- grow
+    for (i in 1:(no.var - 1)){
+    temp <- rbind(temp, grow) ##multiplying temp to match rows for result
+    
+    }
+    
+    result <- cbind(result, temp[, keep])
+    
+    colnames(result) <- c(key, value, keep)
+    
+    return(result)
+  }
+  
+  
 }
 
 ```
