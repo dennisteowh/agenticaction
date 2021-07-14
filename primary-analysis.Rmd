@@ -23,7 +23,6 @@ library(tidyverse)
 library(ggplot2)
 library(car)
 library(rstatix)
-library(ggpattern)
 library(langcog)
 library(Rlab)
 
@@ -399,8 +398,9 @@ plot2 <- ggplot(summary1mod, aes(x = Condition, y = mean, fill = Structure)) +
   theme_bw() + xlab("")+
   geom_vline(xintercept=2.5, linetype="dashed")+
   geom_vline(xintercept=4.5, linetype="dashed")+
-  theme(text = element_text(size = 16),
-        plot.title = element_text(face = "bold", size = 16, hjust = 0.5)) +
+  theme(text = element_text(size = 32),
+        axis.text.x = element_text(face = "bold", size = 36, hjust = 0.5),
+        plot.title = element_text(face = "bold", size = 32, hjust = 0.5)) +
   ggtitle("Human Data")
 
 ```
@@ -446,7 +446,7 @@ two_agent2.data <- data.frame(
 pred.data <- as.data.frame(rbind(human.data, robot.data, robot2.data, two_agent.data, two_agent2.data))
 
 pred.data$Condition <- factor(pred.data$Condition, levels = c("Intentional", "Unintentional","Semi-intentional", "Two-agent-solo","Two-agent-coop"),
-                              labels = c("Intentional", "Unintentional","Semi-intentional", "Two-agent-independent","Two-agent-coop"))
+                              labels = c("Intentional", "Unintentional","Semi-intentional", "Two-agent-independent","Two-agent-coop"), ordered = T)
 
 pred.data$Structure <- factor(pred.data$Structure, levels = c("B", "P", "B & P", "B -> P"))
 
@@ -458,23 +458,36 @@ plot1 <- ggplot(pred.data, aes(x = Condition, y = mean, fill=Structure)) +
   ylim(0,.75) +
   geom_vline(xintercept=1.5, linetype="dashed")+
   geom_vline(xintercept=3.5, linetype="dashed")+
-  theme(text = element_text(size = 16),
-        plot.title = element_text(face = "bold", size = 16, hjust = 0.5)) +
+  theme(text = element_text(size = 28),
+        axis.text.x = element_text(face = "bold", size = 28, hjust = 0.5),
+        plot.title = element_text(face = "bold", size = 28, hjust = 0.5)) +
   ggtitle("Model Predictions")+
-  annotate(geom="text", x=1.08, y=.6, label=expression('D'["KS"] * '= .01') , size = 4  )+
-  annotate(geom="text", x=2.08, y=.6, label=expression('D'["KS"] * '= .16'^"*") , size = 4  )+
-  annotate(geom="text", x=3.08, y=.6, label=expression('D'["KS"] * '= .04')  , size = 4 )+
-  annotate(geom="text", x=4.08, y=.6, label=expression('D'["KS"] * '= .13'^"*"), size = 4   )+
-  annotate(geom="text", x=5.08, y=.6, label=expression('D'["KS"] * '= .03') , size = 4  )
+  annotate(geom="text", x=1.08, y=.6, label=expression('D'["KS"] * '= .03') , size = 8  )+
+  annotate(geom="text", x=2.08, y=.6, label=expression('D'["KS"] * '= .63'^"*") , size = 8  )+
+  annotate(geom="text", x=3.08, y=.6, label=expression('D'["KS"] * '= .10')  , size = 8 )+
+  annotate(geom="text", x=4.08, y=.6, label=expression('D'["KS"] * '= .58'^"*"), size = 8   )+
+  annotate(geom="text", x=5.08, y=.6, label=expression('D'["KS"] * '= .10') , size = 8 )
 
+library(stringr)
+str_wrap_factor <- function(x, ...) {
+  levels(x) <- str_wrap(levels(x), ...)
+  x
+}
+
+plot3 <- plot1 + aes(str_wrap_factor(Condition, 10), mean) + xlab(NULL) +
+  ylab("likelihood ratings")
 
 
 ```
 
-```{r}
+
+```{r fig.height=20, fig.width=24}
+# note: the KSD estimates are corrected and different from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+
 library(grid)
 grid.newpage()
-grid.draw(rbind(ggplotGrob(plot2), ggplotGrob(plot1), size = "last"))
+grid.draw(rbind(ggplotGrob(plot2), ggplotGrob(plot3), size = "last"))
 
 ```
 
@@ -486,7 +499,6 @@ grid.draw(rbind(ggplotGrob(plot2), ggplotGrob(plot1), size = "last"))
 
 ```{r}
 
-
 intention_data <- scl_dat_long_norm %>%
   filter(condition == "condition 1") %>%
   spread(key = structure, value = likelihood)
@@ -495,22 +507,22 @@ causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_
 
 set.seed(100)
 
+intention_dist <- matrix(nrow=nrow(intention_data), ncol = length(causes))
 # convert human data into categories by sampling
 for (i in 1:length(causes)){
-  intention_data[, causes[i]] <- rbern(nrow(intention_data), as.vector(unlist( intention_data[, causes[i]])))*i
+  intention_dist[,i] <- rbern(nrow(intention_data), rep(as.vector(unlist( intention_data[, causes[i]]))))*i
 }
+intention_dist <- intention_dist[intention_dist!=0]
+table(intention_dist)
 
 # sample from predicted posterior
-intention_pred <- sample_bern(100, human)
+intention_pred <- sample_bern(10000, human) # compare to population
+intention_pred <- intention_pred[intention_pred!=0]
+table(intention_pred)
 
-intention_vect <- c(intention_data$cause_blue_norm,
-                    intention_data$cause_pink_norm,
-                    intention_data$cause_both_norm,
-                    intention_data$cause_bp_norm
-                    )
-
-ks.test(intention_pred, intention_vect)
-
+# note: these are corrected estimates from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+ks.test(intention_pred, intention_dist)
 
 ```
 
@@ -526,24 +538,24 @@ unintention_data <- scl_dat_long_norm %>%
 
 causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
 
-
 set.seed(100)
 
+unintention_dist <- matrix(nrow=nrow(unintention_data), ncol = length(causes))
+# convert human data into categories by sampling
 for (i in 1:length(causes)){
-  unintention_data[, causes[i]] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
+  unintention_dist[,i] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
 }
+unintention_dist <- unintention_dist[unintention_dist!=0]
+table(unintention_dist)
 
-unintention_pred <- sample_bern(100, robot)
+# sample from predicted posterior
+unintention_pred <- sample_bern(10000, robot)
+unintention_pred <- unintention_pred[unintention_pred!=0]
+table(unintention_pred)
 
-
-unintention_vect <- c(unintention_data$cause_blue_norm,
-                    unintention_data$cause_pink_norm,
-                    unintention_data$cause_both_norm,
-                    unintention_data$cause_bp_norm
-                    )
-
-ks.test(unintention_pred, unintention_vect)
-
+# note: these are corrected estimates from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+ks.test(unintention_pred, unintention_dist)
 
 
 ```
@@ -559,23 +571,25 @@ unintention_data <- scl_dat_long_norm %>%
 
 causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
 
-
 set.seed(100)
 
+unintention_dist <- matrix(nrow=nrow(unintention_data), ncol = length(causes))
+# convert human data into categories by sampling
 for (i in 1:length(causes)){
-  unintention_data[, causes[i]] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
+  unintention_dist[,i] <- rbern(nrow(unintention_data), as.vector(unlist( unintention_data[, causes[i]])))*i
 }
+unintention_dist <- unintention_dist[unintention_dist!=0]
+table(unintention_dist)
 
-unintention_pred <- sample_bern(100, semi)
+# sample from predicted posterior
+semiintention_pred <- sample_bern(10000, semi)
+semiintention_pred <- semiintention_pred[semiintention_pred!=0]
+table(unintention_pred)
 
+# note: these are corrected estimates from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+ks.test(semiintention_pred, unintention_dist)
 
-unintention_vect <- c(unintention_data$cause_blue_norm,
-                    unintention_data$cause_pink_norm,
-                    unintention_data$cause_both_norm,
-                    unintention_data$cause_bp_norm
-                    )
-
-ks.test(unintention_pred, unintention_vect)
 
 ```
 
@@ -590,23 +604,24 @@ two_agent_data <- scl_dat_long_norm %>%
 
 causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_norm")
 
-
 set.seed(100)
 
+two_agent_dist <- matrix(nrow=nrow(two_agent_data), ncol = length(causes))
+# convert human data into categories by sampling
 for (i in 1:length(causes)){
-  two_agent_data[, causes[i]] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
+  two_agent_dist[,i] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
 }
+two_agent_dist <- two_agent_dist[two_agent_dist!=0]
+table(two_agent_dist)
 
-two_pred <- sample_bern(100, two_agent_independent)
+# sample from predicted posterior
+independent_pred <- sample_bern(10000, two_agent_independent)
+independent_pred <- independent_pred[independent_pred!=0]
+table(independent_pred)
 
-
-two_vect <- c(two_agent_data$cause_blue_norm,
-                    two_agent_data$cause_pink_norm,
-                    two_agent_data$cause_both_norm,
-                    two_agent_data$cause_bp_norm
-                    )
-
-ks.test(two_pred, two_vect)
+# note: these are corrected estimates from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+ks.test(independent_pred, two_agent_dist)
 
 ```
 
@@ -623,20 +638,23 @@ causes <- c("cause_blue_norm", "cause_pink_norm" , "cause_both_norm", "cause_bp_
 
 set.seed(100)
 
+two_agent_dist <- matrix(nrow=nrow(two_agent_data), ncol = length(causes))
+# convert human data into categories by sampling
 for (i in 1:length(causes)){
-  two_agent_data[, causes[i]] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
+  two_agent_dist[,i] <- rbern(nrow(two_agent_data), as.vector(unlist( two_agent_data[, causes[i]])))*i
 }
+two_agent_dist <- two_agent_dist[two_agent_dist!=0]
+table(two_agent_dist)
 
-two_pred <- sample_bern(100, two_agent_coop)
+# sample from predicted posterior
+coop_pred <- sample_bern(10000, two_agent_coop)
+coop_pred <- coop_pred[coop_pred!=0]
+table(coop_pred)
 
+# note: these are corrected estimates from the paper (our previous estimates tended to underestimate the KSD). 
+# However, the corrected estimates lead to qualitatively similar conclusions 
+ks.test(coop_pred, two_agent_dist)
 
-two_vect <- c(two_agent_data$cause_blue_norm,
-                    two_agent_data$cause_pink_norm,
-                    two_agent_data$cause_both_norm,
-                    two_agent_data$cause_bp_norm
-                    )
-
-ks.test(two_pred, two_vect)
 
 ```
 
