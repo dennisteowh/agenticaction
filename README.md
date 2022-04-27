@@ -1,6 +1,6 @@
 # Learning From Agentic Action: Modelling Causal Inference from Intention
 
-This github repository contains the source code and data analysis for the CogSci submission titled, "Learning From Agentic Action: Modelling Causal Inference from Intention".
+This github repository contains the source code and data analysis for the CogSci submission titled, ["Learning From Agentic Action: Modelling Causal Inference from Intention"](https://escholarship.org/content/qt7ss6352d/qt7ss6352d_noSplash_1e97bacb3915f099a7b2cd966bbc0f41.pdf?t=qwi3ku).
 
 ## Source Code for Inference Models
 
